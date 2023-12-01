@@ -11,13 +11,13 @@
 
 - [Mengenal Analisis Regresi]
 - [Pemodelan Regresi Linier]
-- [Analisis Sisaan]
+- [Analisis Sisaan Model]
 
 ## Mengenal Analisis Regresi
 Terdiri dari visualisasi konsep analisis regresi, yang membahas beberapa poin yakni: Definisi, Tahapan Analisis, Tujuan Analisis, Representasi Geometrik, Tipe Analisis, Asumsi dan Evaluasi Model, dan Interpretasi Model
 
-## Eksplorasi Regresi Linier
-Terdiri atas main bar Scatter plot dan Residual plot. Side bar yang tersedia yaitu relationship berupa menu dropdown (menggambar scatterplot dengan klik titik sembarang, linier relationship, dan random scatter), option berupa menu pilihan
+## Pemodelan Regresi Linier
+Terdiri atas main bar Statistika Deskriptif dari Dataset, Scatterplot Model Regresi, dan Output Pemodelan Regresi. Side bar yang tersedia yaitu Pilih Dataset berupa menu dropdown (untuk memilih dataset), Pilih Peubah Bebas dan Penjelas, dan Opsi Output Model Regresi
 
-## Eksplorasi Regresi Linier
-Terdiri atas main bar Scatter plot dan Residual plot. Side bar yang tersedia yaitu relationship berupa menu dropdown (menggambar scatterplot dengan klik titik sembarang, linier relationship, dan random scatter), option berupa menu pilihan
+## Analisis Sisaan Model
+Terdiri atas main bar Output Dataframe Peubah Bebas, Peubah Penjelas, Sisaan, Nilai Prediksi Peubah Bebas dari Pemodelan Regresi, dan Scatterplot Sisaan. Side bar yang tersedia yaitu Pilih Jenis Sisaan yang akan ditampilkan pada main bar
