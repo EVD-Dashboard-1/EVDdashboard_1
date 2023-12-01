@@ -9,8 +9,15 @@
 
 ## :bookmark_tabs: Menu
 
-- [Eksplorasi Regresi Linier]
-- [Regresi Linier]
+- [Mengenal Analisis Regresi]
+- [Pemodelan Regresi Linier]
+- [Analisis Sisaan]
+
+## Mengenal Analisis Regresi
+Terdiri dari visualisasi konsep analisis regresi, yang membahas beberapa poin yakni: Definisi, Tahapan Analisis, Tujuan Analisis, Representasi Geometrik, Tipe Analisis, Asumsi dan Evaluasi Model, dan Interpretasi Model
 
 ## Eksplorasi Regresi Linier
-Terdiri atas main bar Scatter plot dan Residual plot. Side bar yang tersedia yaitu relationship berupa menu dropdown (menggambar scatterplot dengan klik titik sembarang, linier relationship, dan random scatter), option berupa menu pilihan 
+Terdiri atas main bar Scatter plot dan Residual plot. Side bar yang tersedia yaitu relationship berupa menu dropdown (menggambar scatterplot dengan klik titik sembarang, linier relationship, dan random scatter), option berupa menu pilihan
+
+## Eksplorasi Regresi Linier
+Terdiri atas main bar Scatter plot dan Residual plot. Side bar yang tersedia yaitu relationship berupa menu dropdown (menggambar scatterplot dengan klik titik sembarang, linier relationship, dan random scatter), option berupa menu pilihan
