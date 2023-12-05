@@ -2,6 +2,12 @@ library(shinythemes)
 library(shinyWidgets)
 library(shiny)
 library(shinydashboard)
+library(shinysky)
+library(DT)
+library(tidyverse)
+library(rhandsontable)
+library(data.table)
+library(googleVis)
 ###############################################################################
 #                               USER INTERFACE                                #  
 ###############################################################################
@@ -15,51 +21,125 @@ ui <- shinyUI(
         #-------------Sidebar Panel inside Tab 1------------#
         sidebarPanel(
           # ----- Data Source Selection ----- #
-          selectInput(inputId = "data", "Enter Data", 
-                      choices = c('Example Datasets', 
-                                  'Upload File', 
-                                  'Enter Your Own'),
-                      multiple = FALSE,
-                      selected = "Example Datasets"),
-          # --- [Cond 1] Select: Example Datasets
-          conditionalPanel(
-            condition = "input.data == 'Example Datasets'",
-            selectInput(inputId = 'select_example',
-                        label = "Dataset Choice",
-                        choices = list("cars",
-                                       "women",
-                                       "rock",
-                                       "pressure"),
-                        multiple = FALSE)
-          ),
-          # --- [Cond 2] Select: Upload File
-          conditionalPanel(
-            condition = "input.data == 'Upload File'",
-            fileInput(inputId = 'chosen_file', 
-                      label = 'Choose CSV File',
-                      accept = c('text/csv',
-                                 'text/comma-separated-values,text/plain',
-                                 '.csv')
-            )
+          fluidRow(
+            column(6, selectInput(inputId = "data", label = "Enter Data",
+                                  choices = c("Example Datasets", 
+                                              "Upload File", 
+                                              "Enter Your Own"))
+            ),
+            # --- [Cond 1] Select: Example Datasets
+            column(6, conditionalPanel(
+              condition = "input.data == 'Example Datasets'",
+              selectInput(inputId = 'select_example',
+                          label = "Dataset Choice",
+                          choices = c("cars",
+                                      "women",
+                                      "rock",
+                                      "pressure"))
+            )),
+            # --- [Cond 2] Select: Upload File
+            column(6, conditionalPanel(
+              condition = "input.data == 'Upload File'",
+              fileInput(inputId = 'chosen_file', 
+                        label = 'Choose CSV File',
+                        accept = c('text/csv',
+                                   'text/comma-separated-values,text/plain',
+                                   '.csv'))
+            ))
           ),
           # --- [Cond 3] Select: Enter Your Own
-          conditionalPanel(condition = "input.data == 'Enter Your Own'",
-                           hotable("hot")   # INI KAYAKNYA ADA YG SALAH
-                           
+          fluidRow(
+            column(12, conditionalPanel(
+              condition = "input.data == 'Enter Your Own'",
+              rHandsontableOutput(outputId = "tabelle"),
+              actionButton("save",label = "Save Data")
+            ))
+          ),
+          # ------ Display Table ------ #
+          fluidRow(
+            DT::dataTableOutput("show_tbl", width = "100%")
+          ),
+          # ------ Set Used Variables ------ #
+          fluidRow(
+            column(6, uiOutput('iv')), # Set X-Variable
+            column(6, uiOutput('dv'))  # Set X-Variable
+          ),
+          # ------ Show Prediction Results ------ #
+          # fluidRow(uiOutput("Pred")), # Ini belum ada inputnya
+          # ---------- Plot Options ---------- #
+          fluidRow(
+            h5("Plot Options"),
+            # --- Smooth Trend
+            checkboxInput(inputId = "smooth", label = "Smooth Trend"),
+            # --- [Cond] Selected
+            conditionalPanel(
+              condition = "input.smooth == TRUE",
+              sliderInput(inputId = "slider.smooth", label = "Degree of Smoothness", min = 0.5, max = 2, value = 0.8)
+            ),
+            # --- Regression Line
+            checkboxInput(inputId = "regline", label = "Regression Line"),
+            # --- Remove Points            !!!!!!!!!!!!!!! BELUM TAU CARANYA !!!!!!!!!!!!!!!!!
+            checkboxInput(inputId = "p3", label = "Click to Remove Points"),
+            
+            
+            # --- Drag Points               !!!!!!!!!!!!!!! BELUM TAU CARANYA !!!!!!!!!!!!!!!!!
+            checkboxInput(inputId = "p4", label = "Drag Points"),
+            
+            
+            # --- Variable Shown when Hover   !!!!!!!!!!!!!!! BELUM TAU CARANYA !!!!!!!!!!!!!!!!!
+            checkboxInput(inputId = "p5", label = "Select Variable(s) for Hover Info"),
+            
+            
+            # --- Title & Subtitle             !!!!!!!!!!!!!!! BELUM TAU CARANYA !!!!!!!!!!!!!!!!!
+            checkboxInput(inputId = "p6", label = "Title & Subtitle"),
+            
+            
+            # --- Smooth Trend           !!!!!!!!!!!!!!! BELUM TAU CARANYA !!!!!!!!!!!!!!!!!
+            checkboxInput(inputId = "p7", label = "Axis Labels")
+          ),
+          
+          # ---------- Regression Options ---------- #
+          fluidRow(
+            h5("Regression Options"),
+            # --- Predicted Value
+            checkboxInput(inputId = "r1", label = "Find Predicted Value"),
+            # --- [Cond] Selected
+            
+            checkboxInput(inputId = "r2", label = "Show Residuals on Plot"),
+            # --- [Cond] Selected
+            
+            checkboxInput(inputId = "r3", label = "Show Standard Errors & P-Values"),
+            # --- [Cond] Selected
+            
+            checkboxInput(inputId = "r4", label = "Confidence Intervals for Slope"),
+            # --- [Cond] Selected
+            
+            checkboxInput(inputId = "r5", label = "Confidence/Prediction Interval"),
+            # --- [Cond] Selected
+            
+            checkboxInput(inputId = "r6", label = "ANOVA Table")
+            # --- [Cond] Selected
+            # conditionalPanel()
           )
         ),
+        #--------------Main Panel inside Tab 1--------------# 
         mainPanel(
           # --- Descriptive Statistics --- #
           fluidRow(
+            column(12, verbatimTextOutput("summary"))
           ),
           # --- Scatter Plot --- #
           fluidRow(
+            plotOutput(outputId = "scatter")
           ),
           # --- Linear Regression Equations --- #
           fluidRow(
+            column(12, verbatimTextOutput("model"))
           ),
-          # --- Model Summary --- #
+          # --- Model Summary (CORRELATION DULU SEMENTARA) --- #
           fluidRow(
+            htmlOutput("corr"),
+            HTML('</br> </br>')
           )
         )
       )
@@ -92,8 +172,9 @@ ui <- shinyUI(
 ###############################################################################
 server <- 
   function(input, output){
-    #~~~~~~~~~~~~~~~~~~~~~~Used Dataset~~~~~~~~~~~~~~~~~~~~~#
-    
+    ###################################################################
+    #~~~~~~~~~~~Conditional Datasets & Personalized Outputs~~~~~~~~~~~#
+    ###################################################################
     myData <- reactive({
       req(input$data)
       # ---------- Example Dataset ---------- #
@@ -103,184 +184,96 @@ server <-
                  "cars" = mtcars,
                  "women" = women, 
                  "rock" = rock,
-                 "pressure" = pressure)})
+                 "pressure" = pressure)
+        })
+        output$scatter <- renderPlot({
+          plot(myData()[,input$iv], myData()[,input$dv],
+               xlab = input$iv, ylab = input$dv,  main = "Scatter Plot of Independent and Dependent Variables", pch = 16, 
+               col = "black", cex = 1)})
         return(as.data.frame(chosendata()))
       }
       # ---------- Upload the Dataset ---------- #
       else if(input$data == "Upload File"){
         filedata <- reactive({
           inFile <- input$chosen_file
-          if (is.null(inFile)) return(NULL)
+          ext <- tools::file_ext(inFile$datapath)
+          req(inFile)
+          validate(need(ext =="csv", "Please upload a csv file"))
           readData <- read.csv(inFile$datapath, header = TRUE)
+          readData
         })
-        return(as.data.frame(readData))
+        output$scatter <- renderPlot({
+          plot(myData()[,input$iv], myData()[,input$dv],
+               xlab = input$iv, ylab = input$dv,  main = "Scatter Plot of Independent and Dependent Variables", pch = 16, 
+               col = "black", cex = 1)})
+        return(as.data.frame(filedata()))
       }
       # ---------- Manually Enter Dataset ---------- #
-      else if (input$data == "Enter Your Own"){
-        # Initiate the Table
-        temp_tbl <- setNames(data.frame(matrix(ncol = 2, nrow = 10)),
-                             c(get(input$dv), get(input$iv))) #JANGAN LUPA DEFINE DV & IV JADI ELSE = X & Y DI AKHIR
-        init_tbl <- reactive({temp_tbl})
-        # Table Changes
-        edit_tbl <- reactive({
-          if(is.null(input$hot)){return(init_tbl())}
-          else if(!identical(init_tbl(), input$hot)){
-            # hot.to.df will convert the updated table into df
-            as.data.frame(hot.to.df(input$hot))
-          }
+      else if(input$data == "Enter Your Own"){
+        daten <- data.table(
+          X = vector(mode = "character", length = 10), 
+          Y = vector(mode = "character", length = 10))
+        data.in <- reactiveValues(values = daten)
+        output$tabelle <- renderRHandsontable({
+          rhandsontable(data.in$values)
         })
-        output$hot <- renderHotable({edit_tbl()}, readOnly = F)
-        return(edit_tbl())
+        observeEvent(eventExpr = input$tabelle, {
+          data.in$values <- hot_to_r(input$tabelle)
+          output$scatter <- renderPlot({
+            req(input$save)
+            if(!is.null(tryCatch(plot(data.in$values), error = function(e){})))
+            {plot(data.in$values)}
+          })
+        })
       }
     })
     
-    output$show_tbl = renderTable(myData())
+    output$show_tbl = DT::renderDataTable(myData(),
+                                          options = list(scrollX = TRUE))
     
-    #     # ---------- Example Dataset ---------- #
-    #     example_df <- reactive({
-    #       input_data <- switch(input$select_example,
-    #                            "cars" = mtcars,
-    #                            "women" = women,  
-    #                            "rock" = rock,
-    # "pressure" = pressure
-    #              )
-    #     })
-    #     # ----- [output] Example Dataset
-    #     output$ex_tbl = DT::renderDataTable(example_df())
-    #     
-    #     # data view 
-    #     # output$view <- renderTable({
-    #     #   head(datasetInput(), n = input$obs)
-    #     # })
-    #     
-    #     # ---------- Upload the Dataset ---------- #
-    #     myData <- reactive({
-    #       inFile <- input$datfile
-    #       if (is.null(inFile)) return(NULL)
-    #       data <- read.csv(inFile$datapath, header = TRUE)
-    #       data
-    #     })
-    #     # ----- [output] Uploaded Dataset
-    #     output$contents <- DT::renderDataTable({
-    #       DT::datatable(myData())       
-    #     })
-    #     
-    #     # ---------- Manually Enter Dataset ---------- #
-    #     df_create <- setNames(data.frame(matrix(ncol = 2, nrow = 10)),
-    #                           c(get(input$iv), get(input$dv)))
-    #     # Initiate the Table
-    #     init_df <- reactive({df_create})
-    #     # Trigger the Change
-    #     Trigger_orders <- reactive({
-    #       if(is.null(input$hotable1)){return(init_df())}
-    #       else if(!identical(init_df(),input$hotable1)){
-    #         # hot.to.df function will convert your updated table into the dataframe
-    #         as.data.frame(hot.to.df(input$hotable1))
-    #       }
-    #     })
-    #     output$hotable1 <- renderHotable({Trigger_orders()}, readOnly = F)
-    #     # ----- [output] Entered Dataset
-    #     output$own_tbl = DT::renderDataTable(Trigger_orders())
-    
+ 
     ###################################################################
-    #~~~~~~~~~~~~~~~~~~~~~~All Input Informations~~~~~~~~~~~~~~~~~~~~~#
+    #~~~~~~~~~~~~~~~~~~~~~~~Global Informations~~~~~~~~~~~~~~~~~~~~~~~#
     ###################################################################
     # ---------- Independent Variable ---------- #
     output$iv <- renderUI({
       if(req(input$data) != "Enter Your Own"){
         selectInput(inputId = 'iv', label = h5('Independent Variable'), 
-                    choices = names(output$show_tbl))
+                    choices = names(myData()))
       } else if(req(input$data) == "Enter Your Own"){
         textInput(inputId = 'iv',
-                  label = h5('Write Your Independent Variable'),
-                  value = "X")
+                  label = h5('Set Your Independent Variable'),
+                  value = "X",
+                  placeholder = "Enter text...")
+        actionButton("subx", "submitx")
       }
     })
     # ---------- Dependent Variable ---------- #
     output$dv <- renderUI({
       if(req(input$data) != "Enter Your Own"){
         selectInput(inputId = 'dv', label = h5('Dependent Variable'), 
-                    choices = names(output$show_tbl))
+                    choices = names(myData()))
       } else if(input$data == "Enter Your Own"){
         textInput(inputId = 'dv',
-                  label = h5('Write Your Dependent Variable'),
-                  value = "Y")
+                  label = h5('Set Your Dependent Variable'),
+                  value = "Y",
+                  placeholder = "Enter text...")
+        actionButton("suby", "submity")
       }
     })
+  # source: https://stackoverflow.com/questions/71665154/select-the-column-name-of-a-reactive-dataframe-and-update-it-with-a-textinput
     
     
-    
-    # # --- Example Dataset
-    # output$ex_iv = renderUI({
-    #   selectInput(inputId = 'sel_iv', label = h4('Independent Variable'), 
-    #               choices = names(example_df()))
-    # })
-    # # --- Uploaded Dataset
-    # output$upl_iv = renderUI({
-    #   selectInput(inputId = 'upl_iv', label = h4('Independent Variable'), 
-    #               choices = names(myData()))
-    # })
-    # 
-    # # --- Manually Entered Dataset
-    # output$ent_iv = renderUI({
-    #   textInput(inputId = 'ent_iv',
-    #             label = h4('Write Your Independent Variable'),
-    #             value = "X")
-    # })
-    
-    # # ---------- Dependent Variable ---------- #
-    # # --- Example Dataset
-    # output$sel_dv = renderUI({
-    #   selectInput(inputId = 'sel_dv', label = h4('Dependent Variable'), 
-    #               choices = names(example_df()))
-    # })
-    # # --- Uploaded Dataset
-    # output$upl_dv = renderUI({
-    #   selectInput(inputId = 'upl_dv', label = h4('Dependent Variable'), 
-    #               choices = names(myData()))
-    # })
-    # 
-    # # --- Manually Entered Dataset
-    # output$ent_dv = renderUI({
-    #   textInput(inputId = 'ent_dv',
-    #             label = h4('Write Your Dependent Variable'),
-    #             value = "Y")
-    # })
-    
-    # ---------- Regression Information ---------- #
-    # --- Regression Formula
-    regFormula <- reactive({
-      as.formula(paste(input$dv, '~', input$iv))
-    })
-    
-    # --- Linear Model
-    model <- reactive({
-      lm(regFormula(), data = myData())
-    })
-    
-    
-    # formula <- reactive({
-    #   req(input$indep)
-    #   mtcars %>%
-    #     recipe() %>%
-    #     update_role(!!!input$dependent, new_role = "outcome") %>%
-    #     update_role(!!!input$indep, new_role = "predictor") %>%
-    #     prep() %>% 
-    #     formula()
-    # })
+    # --- Model Summary
     ###################################################################
     #~~~~~~~~~~~~~~~~~~~~~~~All Output in Sidebar~~~~~~~~~~~~~~~~~~~~~#
     ###################################################################
-    
-    
-    
     #~~~~~~~~~~~~~~~~~~~~~~Predicted Value~~~~~~~~~~~~~~~~~~~~~#
+    # pred <- reactive({
+    #   predict(model,myData())
+    # })
     
-    pred <- reactive({
-      predict(model,myData())
-    })
-    
-    output$Pred <- renderPrint(pred())
+    # output$Pred <- renderPrint(pred())
     
     #~~~~~~~~~~~~~~~Confidence Interval for Slope~~~~~~~~~~~~~~#
     
@@ -290,21 +283,26 @@ server <-
     ###################################################################
     #~~~~~~~~~~~~~~~~~~~~~All Output in Main Panel~~~~~~~~~~~~~~~~~~~~#
     ###################################################################
-    
-    
+   
     
     #########################~~~~~~Tab 1~~~~~~#########################
+    #~~~~~~~~~~~~~~~Statistics Descriptive~~~~~~~~~~~~~~#
+    # should this be limited to the selected variables only??
+    # output$summary <- renderPrint({
+    #   summary(rbind(myData()[input$dv], myData()[input$iv]))
+    # })
     
-    #~~~~~~~~~~~~~~~~~~~~~~Descriptive Statistics~~~~~~~~~~~~~~~~~~~~~#
-    
-    # ---------- Summary Statistics ---------- #
     output$summary <- renderPrint({
-      summary(cbind(myData()[input$dv], myData()[input$iv]))
+      summary(myData())
     })
     
-    #rbind(summary(women[,1]),summary(women[,2]))
+    # output$summary <- renderPrint({
+    #   rbind(summary(women[,1]),summary(women[,2]))
+    # })
     
-    #~~~~~~~~~~~~~~~~~~~~~~Scatter Plot~~~~~~~~~~~~~~~~~~~~~#
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+    #~~~~~~~~~~~~~~~~~~~~~Interactive Scatterplot~~~~~~~~~~~~~~~~~~~#
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
     
     # RegressionPlot <- function(
     # data, x_var, y_var, smoothness, 
@@ -365,6 +363,42 @@ server <-
     #     ggplotly(p, source = "inputPlot")
     #   }
     # })
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    #~~~~~~~~~~~~~~~Informations Related to Regression~~~~~~~~~~~~~~#
+    # ---------- Regression Formula ---------- #
+    regFormula <- reactive({
+      as.formula(paste(input$dv, '~', input$iv))
+    })
+    # ---------- Linear Model ---------- #
+    model <- reactive({
+      lm(regFormula(), data = myData())
+    })
+    # ---------- Summary Model ---------- #
+    output$model <- renderPrint({
+      summary(model())
+    })
+    
+    # ------------ Correlation ---------- #
+    output$corr <- renderGvis({
+      d <- myData()[,sapply(myData(),is.integer)|sapply(myData(),is.numeric)] 
+      cor <- as.data.frame(round(cor(d), 2))
+      cor <- cbind(Variables = rownames(cor), cor)
+      gvisTable(cor)
+    })
+
     
     
     #~~~~~~~~~~~~~~~~~~~~~~Regression Equations~~~~~~~~~~~~~~~~~~~~~#
