@@ -2,7 +2,7 @@ library(shinythemes)
 library(shinyWidgets)
 library(shiny)
 library(shinydashboard)
-library(shinysky)
+# library(shinysky)
 library(DT)
 # library(dplyr)
 library(tidyverse)
@@ -10,7 +10,7 @@ library(rhandsontable)
 library(data.table)
 library(googleVis)
 library(plotly)
-library(ggpmisc)
+# library(ggpmisc)
 library(bslib)
 ###############################################################################
 #                               USER INTERFACE                                #  
@@ -234,29 +234,32 @@ server <-
     #~~~~~~~~~~~Conditional Datasets & Personalized Outputs~~~~~~~~~~~#
     ###################################################################
     # Reactive value for selected dataset
+    selected_df <- reactive({
+      switch(input$select_example,
+             "Otomotif Mobil" = mtcars,
+             "Karakteristik Batu" = rock,
+             "Temperatur & Tekanan" = pressure)
+    })
+    
+    uploaded_df <- reactive({
+      inFile <- input$chosen_file
+      ext <- tools::file_ext(inFile$datapath)
+      req(inFile)
+      validate(need(ext =="csv", "Silahkan unggah berkas csv"))
+      readData <- read.csv(inFile$datapath, header = TRUE)
+      readData
+    })
+    
     myData <- reactive({
       req(input$data)
       # ---------- Example Dataset ---------- #
       if(input$data == "Dataset Contoh"){
-        df <- reactive({
-          switch(input$select_example,
-                 "Otomotif Mobil" = mtcars,
-                 "Karakteristik Batu" = rock,
-                 "Temperatur & Tekanan" = pressure)
-        })
+        return(as.data.frame(selected_df()))
       }
       # ---------- Upload the Dataset ---------- #
       else if(input$data == "Unggah Dataset"){
-        df <- reactive({
-          inFile <- input$chosen_file
-          ext <- tools::file_ext(inFile$datapath)
-          req(inFile)
-          validate(need(ext =="csv", "Silahkan unggah berkas csv"))
-          readData <- read.csv(inFile$datapath, header = TRUE)
-          readData
-        })
+        return(as.data.frame(uploaded_df()))  
       }
-      return(as.data.frame(df()))
     })
     
     output$show_tbl = renderTable(myData(),
