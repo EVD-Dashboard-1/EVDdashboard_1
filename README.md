@@ -1,4 +1,4 @@
-# Analisis Regresi
+#  Regresi Linier
 
 ## Kelompok 1
 
@@ -17,7 +17,7 @@
 Terdiri dari visualisasi konsep analisis regresi, yang membahas beberapa poin yakni: Definisi, Tahapan Analisis, Tujuan Analisis, Representasi Geometrik, Tipe Analisis, Asumsi dan Evaluasi Model, dan Interpretasi Model
 
 ## Pemodelan Regresi Linier
-Terdiri atas main bar Statistika Deskriptif dari Dataset, Scatterplot Model Regresi, dan Output Pemodelan Regresi. Side bar yang tersedia yaitu Pilih Dataset berupa menu dropdown (untuk memilih dataset), Pilih Peubah Bebas dan Penjelas, dan Opsi Output Model Regresi
+Terdiri dari main bar Statistika Deskriptif dari Dataset, Scatterplot Model Regresi, dan Output Pemodelan Regresi. Side bar yang tersedia yaitu Pilih Dataset berupa menu dropdown (untuk memilih dataset), Pilih Peubah Bebas dan Penjelas, dan Opsi Output Model Regresi
 
 ## Analisis Sisaan Model
-Terdiri atas main bar Output Dataframe Peubah Bebas, Peubah Penjelas, Sisaan, Nilai Prediksi Peubah Bebas dari Pemodelan Regresi, dan Scatterplot Sisaan. Side bar yang tersedia yaitu Pilih Jenis Sisaan yang akan ditampilkan pada main bar
+Terdiri dari main bar Output Dataframe Peubah Bebas, Peubah Penjelas, Sisaan, Nilai Prediksi Peubah Bebas dari Pemodelan Regresi, dan Scatterplot Sisaan. Side bar yang tersedia yaitu Pilih Jenis Sisaan yang akan ditampilkan pada main bar
