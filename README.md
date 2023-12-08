@@ -1,4 +1,4 @@
-# Regresi
+# Analisis Regresi
 
 ## Kelompok 1
 
