@@ -5,10 +5,12 @@ library(shinydashboard)
 # library(shinysky)
 library(DT)
 # library(dplyr)
+# install.packages("tidyverse")
 library(tidyverse)
 library(rhandsontable)
 library(data.table)
 library(googleVis)
+library(MASS)
 library(plotly)
 # library(ggpmisc)
 library(bslib)
@@ -37,7 +39,7 @@ ui <- shinyUI(
     ),
   navbarPage(
     title = a(tags$b("REGRESI LINIER")),
-    #~~~~~~~~~~~~~~~~~~~~~~~~~Tab 1~~~~~~~~~~~~~~~~~~~~~~~~~#
+    #~~~~~~~~~~~~~~~~~~~~~~~~Tab 1~~~~~~~~~~~~~~~~~~~~~~~~#
     tabPanel(
       title = "Pemodelan Regresi Linier",
       sidebarLayout(
@@ -113,8 +115,6 @@ ui <- shinyUI(
           # ---------- Regression Options ---------- #
           fluidRow(
             h5("Pengaturan Regresi"),
-            # ------- Predicted Value
-            checkboxInput(inputId = "ro_pre", label = "Hitung Nilai Prediksi"),
             # --- [Cond] Selected
 
             # ------- Show Std. Error & P-Values
@@ -168,7 +168,7 @@ ui <- shinyUI(
         )
       )
     ),
-    #~~~~~~~~~~~~~~~~~~~~~~~~~Tab 2~~~~~~~~~~~~~~~~~~~~~~~~~#
+    #~~~~~~~~~~~~~~~~~~~~~~~~Tab 2~~~~~~~~~~~~~~~~~~~~~~~~#
     tabPanel(
       title = "Analisis Sisaan dan Nilai Prediksi",
       sidebarLayout(
@@ -200,7 +200,9 @@ ui <- shinyUI(
           # ------ Plot Additional Option ------ #
           fluidRow(
             checkboxInput(inputId = "add_hist", label = "Histogram of Residuals"),
-            checkboxInput(inputId = "add_box", label = "Boxplot of Residuals")
+            checkboxInput(inputId = "add_box", label = "Boxplot of Residuals"),
+            # ------- Predicted Value
+            checkboxInput(inputId = "ro_pre", label = "Hitung Nilai Prediksi")
           )
         ),
         #--------------Main Panel inside Tab 2--------------# 
@@ -213,9 +215,20 @@ ui <- shinyUI(
           fluidRow(
             column(6,
                    conditionalPanel(
-                     condition = "input$add_hist == 'TRUE'",
+                     condition = "input.add_hist == true",
+                     plotlyOutput("hist_residual")
                      )),
-            column(6)
+            column(6,
+                    conditionalPanel(
+                        condition = "input.add_box == true",
+                        plotlyOutput("boxplot_residual")
+                    ))
+          ),
+          fluidRow(
+            conditionalPanel(
+                condition = "input.ro_pre == true",
+                tableOutput("table_pred")
+            )
           )
         )
       )
@@ -231,7 +244,7 @@ ui <- shinyUI(
 server <- 
   function(input,output, session){
     ###################################################################
-    #~~~~~~~~~~~Conditional Datasets & Personalized Outputs~~~~~~~~~~~#
+    #~~~~~~~~~~Conditional Datasets & Personalized Outputs~~~~~~~~~~#
     ###################################################################
     # Reactive value for selected dataset
     selected_df <- reactive({
@@ -266,7 +279,7 @@ server <-
                                   options = list(scrollX = TRUE))
     
     ###################################################################
-    #~~~~~~~~~~~~~~~~~~~~~~~Global Informations~~~~~~~~~~~~~~~~~~~~~~~#
+    #~~~~~~~~~~~~~~~~~~~~~~Global Informations~~~~~~~~~~~~~~~~~~~~~~#
     ###################################################################
     # ---------- Independent Variable ---------- #
     output$iv <- renderUI({
@@ -302,15 +315,15 @@ server <-
     })
     
     ###################################################################
-    #~~~~~~~~~~~~~~~~~~~~~All Output in Main Panel~~~~~~~~~~~~~~~~~~~~#
+    #~~~~~~~~~~~~~~~~~~~~All Output in Main Panel~~~~~~~~~~~~~~~~~~~#
     ###################################################################
     
-    #~~~~~~~~~~~~~~~Statistics Descriptive~~~~~~~~~~~~~~# OKE
+    #~~~~~~~~~~~~~~Statistics Descriptive~~~~~~~~~~~~~# OKE
     output$show_sum <- renderPrint({
       summary(myData())
     })
     
-    #~~~~~~~~~~~~~~~Interactive Scatterplot~~~~~~~~~~~~~~# OKE
+    #~~~~~~~~~~~~~~Interactive Scatterplot~~~~~~~~~~~~~# OKE
     RegressionPlot <- function(
     data, x, y, show_reg_line, show_smooth_line, show_residuals, show_confint){
       # -- model regresi
@@ -363,7 +376,7 @@ server <-
       })
     })
     
-    #~~~~~~~~~~~~~~~~~~~~Residual Plot~~~~~~~~~~~~~~~~~#
+    #~~~~~~~~~~~~~~~~~~~Residual Plot~~~~~~~~~~~~~~~~#
     
     
     ## INI PLOT RESIDUAL OPSI 1. SEPAHAMKU HARUSNYA BISA SIH, DAN UDAH DI CEK DI SECARA TERPISAH
@@ -373,7 +386,7 @@ server <-
     #   # -- model regresi
     #   lm_model <- lm(formula = as.formula(paste0(y, "~", x)),
     #                  data = data)
-    # 
+    
     #   # Create a data frame with predicted values and residuals
     #   residuals_df <- data.frame(
     #     Predictor = x,
@@ -382,20 +395,20 @@ server <-
     #   )
     #   q <- ggplot(residuals_df, aes_string(x = Predictor, y = Residuals))
     #   + geom_point() + theme_minimal()
-    # 
-    # 
+    
+    
     # # -- Raw & vs. Predictor
     # if ("input$res_type == 'Asli'" && "input$res_plot == 'vs. Peubah Penjelas'"){
     #   q <- ggplot(residuals_df, aes_string(x = Predictor, y = Residuals))
     #   + geom_point() + theme_minimal()
     # }
-    # 
+    
     # # -- Standardized & vs. Predictor
     # if ("input$res_type == 'Hasil Standarisasi'" && "input$res_plot == 'vs. Peubah Penjelas'") {
     #   q <- ggplot(residuals_df, aes_string(x = scale(Predictor), y = scale(Residuals)))
     #   + geom_point() + theme_minimal()
     # }
-    # 
+    
     # # -- Raw & vs. Predicted
     # if ("input$res_type == 'Asli'" && "input$res_plot == 'vs. Hasil Dugaan'") {
     #   q <- ggplot(residuals_df, aes_string(x = Predicted, y = Residuals))
@@ -410,7 +423,7 @@ server <-
     #   plot_residu <- ggplotly(q)
     #   return(plot_residu)
     # }
-    # 
+    
     # observeEvent(c(input$dv, input$iv), {
     #                  output$res_plot <- renderPlotly({
     #                    ResidualPlot(data = myData(),
@@ -426,37 +439,37 @@ server <-
     # DAN BOXPLOT BISA JALAN SEMUA#
     
     # Observer to update the residual plot whenever variables change
-    observeEvent(c(input$dv, input$iv), {
-      output$residual_plot <- renderPlot({
-        # Fit linear regression model
-        lm_model <- lm(paste(input$dv, "~", input$iv), data = myData())
+    # observeEvent(c(input$dv, input$iv), {
+    #   output$residual_plot <- renderPlot({
+    #     # Fit linear regression model
+    #     lm_model <- lm(paste(input$dv, "~", input$iv), data = myData())
         
-        # Create a data frame with predicted values and residuals
-        residuals_df <- data.frame(
-          Predicted = predict(lm_model),
-          Residuals = residuals(lm_model)
-        )
-        # Plot residuals
-        ggplot(residuals_df, aes(x = Predicted, y = Residuals)) +
-          geom_point() +
-          geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
-          labs(title = "Residual Plot")
-      })
-      output$res_hist <- renderPlot({
-        residuals <- residuals(lm_model())
-        ggplot() +
-          geom_histogram(aes(x = residuals), bins = 20, fill = "skyblue", color = "black") +
-          labs(title = "Histogram of Residuals")
-      })
-      output$boxplot <- renderPlot({
-        residuals <- residuals(lm_model())
-        ggplot() +
-          geom_boxplot(aes(y = residuals), fill = "lightgreen", color = "black") +
-          labs(title = "Boxplot of Residuals")
-      })
-    })
+    #     # Create a data frame with predicted values and residuals
+    #     residuals_df <- data.frame(
+    #       Predicted = predict(lm_model),
+    #       Residuals = residuals(lm_model)
+    #     )
+    #     # Plot residuals
+    #     ggplot(residuals_df, aes(x = Predicted, y = Residuals)) +
+    #       geom_point() +
+    #       geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+    #       labs(title = "Residual Plot")
+    #   })
+    #   output$res_hist <- renderPlot({
+    #     residuals <- residuals(lm_model())
+    #     ggplot() +
+    #       geom_histogram(aes(x = residuals), bins = 20, fill = "skyblue", color = "black") +
+    #       labs(title = "Histogram of Residuals")
+    #   })
+    #   output$boxplot <- renderPlot({
+    #     residuals <- residuals(lm_model())
+    #     ggplot() +
+    #       geom_boxplot(aes(y = residuals), fill = "lightgreen", color = "black") +
+    #       labs(title = "Boxplot of Residuals")
+    #   })
+    # })
     
-    #~~~~~~~~~~~~~~~Anaysis of Variance (ANOVA) Table~~~~~~~~~~~~~~#
+    #~~~~~~~~~~~~~~Anaysis of Variance (ANOVA) Table~~~~~~~~~~~~~#
 
     output$anova_table <- renderTable({
       # Fit linear regression model
@@ -467,13 +480,100 @@ server <-
       anova_table
     })
     
-    #~~~~~~~~~~~~~~~Predicted Value~~~~~~~~~~~~~~#
-    # pred <- reactive({
-    #   predict(model,myData())
-    # })
-    
-    # output$Pred <- renderPrint(pred())
+    #~~~~~~~~~~~~~~Predicted Value~~~~~~~~~~~~~#
+
+    predicted <- reactive({
+        lm_model <- lm(as.formula(paste0(input$dv, "~", input$iv)), data = myData())
+        pred <- predict(lm_model, myData())
+        data_pred <- data.frame(actual = myData()[,input$dv], predicted = pred)
+        data_pred
+    })
+
+    output$table_pred <- renderTable({
+        as.data.frame(predicted())
+    })
+
+    #~~~~~~~~~~~~~~Residual Value~~~~~~~~~~~~~#
+    residual <- reactive({
+        lm_model <- lm(as.formula(paste0(input$dv, "~", input$iv)), data = myData())
+        res <- residuals(lm_model)
+        stdres <- studres(lm_model)
+        pred <- predict(lm_model, myData())
+
+        if (input$res_type == "Asli"){
+            y <- res
+        } else {
+            y <- stdres
+        }
+        if (input$res_plot == "vs. Peubah Penjelas") {
+            x <- myData()[, input$dv]
+        } else {
+            x <- pred
+        }
+        data.frame(x = x, y = y)
+
+    })
+
+    output$residual_plot <- renderPlotly({
+
+        if (nrow(residual()) == 0) {
+            dat <- data.frame(x = 0, y = 0)
+        } else {
+            dat <- residual()
+        }
         
+        ggplotly(createResidualPlot(dat, "x", "y"))
+    })
+
+    output$hist_residual <- renderPlotly({
+        if (nrow(residual()) == 0) {
+            res <- data.frame(err = 0)
+        } else {
+            lm_model <- lm(as.formula(paste0(input$dv, "~", input$iv)), data = myData())
+            res <- data.frame(err = residuals(lm_model))
+        }
+
+        ggplotly(createHistogram(res, "err"))
+    })
+
+    output$boxplot_residual <- renderPlotly({
+        if (nrow(residual()) == 0) {
+            res <- data.frame(err = 0)
+        } else {
+            lm_model <- lm(as.formula(paste0(input$dv, "~", input$iv)), data = myData())
+            res <- data.frame(err = residuals(lm_model))
+        }
+
+        ggplotly(createBoxplot(res, "err"))
+    })
+        
+}
+
+### Helper
+
+createResidualPlot <- function(data, x_var, y_var) {
+
+	p <- ggplot(data, aes_string(x = x_var, y = y_var)) + geom_point(shape = 21, size = 2.5, stroke = 0.5, color = "black", fill = "#7d336df0") + theme_minimal() + geom_hline(yintercept = 0) 
+	
+	# if (show_smooth_line) {
+	# 	p <- p + geom_smooth(method = "loess", se = FALSE, color = "#1ba0c1", span = smoothness) 
+	# }
+  
+  	return(p)
+
+}
+
+createHistogram <- function(data, var) {
+    
+    h <- ggplot(data, aes_string(x = var)) + geom_histogram(binwidth = 1, colour = 1, fill = "#f48194") + theme_minimal()
+		
+	return(h)
+}
+
+createBoxplot <- function(data, var) {
+    b <- ggplot(data) + geom_boxplot(aes(x = var, y = factor(1))) + theme_minimal()
+
+    return(b)
 }
 
 ###############################################################################
