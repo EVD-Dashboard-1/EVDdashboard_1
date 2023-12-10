@@ -1,6 +1,7 @@
 #  Regresi Linier
 
 ## Kelompok 1
+Dashboard dapat diakses di link https://akmarinak98.shinyapps.io/linear_regression/
 
 ### Collaborative Project by:
 - `Akmarina Khairunnisa` `(G1501221001)`
