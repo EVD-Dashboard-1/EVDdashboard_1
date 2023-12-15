@@ -2,7 +2,6 @@ library(shinythemes)
 library(shinyWidgets)
 library(shiny)
 library(shinydashboard)
-# library(shinysky)
 library(DT)
 library(tidyverse)
 library(rhandsontable)
@@ -11,12 +10,14 @@ library(googleVis)
 library(MASS)
 library(plotly)
 library(bslib)
+library(shinyBS)
 ###############################################################################
 #                               USER INTERFACE                                #  
 ###############################################################################
 ui <- shinyUI(
-  
   fluidPage(
+    withMathJax(), 
+    includeCSS(path = "www/css/styles.css"),
     # --- Style Browser Scale --- #
     tags$head(
       tags$style("
@@ -32,7 +33,17 @@ ui <- shinyUI(
         vertical-align: top;
         border-top: 3px black; 
       }
-    "))
+    ")),
+      withMathJax(),
+      tags$head(
+        tags$style(
+          HTML(
+            ".MathJax {
+            font-size: 2em !important;
+          }"
+          )
+        )
+      )
     ),
     navbarPage(
       title = a(tags$b("REGRESI LINIER")),
@@ -68,10 +79,12 @@ ui <- shinyUI(
               column(6, conditionalPanel(
                 condition = "input.data == 'Unggah Dataset'",
                 fileInput(inputId = 'chosen_file', 
-                          label = 'Choose CSV File',
+                          label = 'Pilih File csv',
                           accept = c('text/csv',
                                      'text/comma-separated-values,text/plain',
-                                     '.csv'))
+                                     '.csv')),
+                bsTooltip(id = "chosen_file", 
+                          title = "Here is some text with your instructions")
               ))
             ),
             # ------ Display Table ------ #
@@ -89,9 +102,18 @@ ui <- shinyUI(
             ),
             # ------ Statistics Descriptive ------ #
             fluidRow(
-              checkboxInput(inputId = "summary", label = "Statistik Deskriptif"),
-              # ------- ANOVA Table
-              checkboxInput(inputId = "ro_ano", label = "Tabel ANOVA")
+              h5("Tampilkan Hasil"),
+              column(6, 
+                     # ------- Statistika Deskriptif
+                     checkboxInput(inputId = "summary", label = "Statistik Deskriptif"),
+                     # ------- ANOVA Table
+                     checkboxInput(inputId = "ro_ano", label = "Tabel ANOVA")),
+              column(6,
+                     # ------- Scatter Plot
+                     checkboxInput(inputId = "scatter", label = "Scatterplot X vs. Y"),
+                     # ------- ANOVA Table
+                     checkboxInput(inputId = "corr", label = "Korelasi Antar Peubah"))
+              
             ),
             # ------ Set Used Variables ------ #
             fluidRow(
@@ -106,7 +128,8 @@ ui <- shinyUI(
               # --- [Cond] Selected
               conditionalPanel(
                 condition = "input.po_smo == true",
-                sliderInput(inputId = "smooth", label = h5("Derajat pemulusan"), min = 0, max = 1, value = 0.5)),
+                sliderInput(inputId = "smooth", label = h5("Derajat pemulusan"), 
+                            min = 0, max = 1, value = 0.5)),
               # --- Regression Line
               checkboxInput(inputId = "po_reg", label = "Garis Regresi"),
               # ------- Show Residuals
@@ -116,7 +139,8 @@ ui <- shinyUI(
               # --- [Cond] Selected
               conditionalPanel(
                 condition = "input.ro_ci_plot == true",
-                sliderInput(inputId = "ci_plot", label = h5("Tingkat Kepercayaan"), min = 0.90, max = 1, value = 0.95)
+                sliderInput(inputId = "ci_plot", label = h5("Tingkat Kepercayaan"), 
+                            min = 0.90, max = 1, value = 0.95)
               ),
             )
           ),
@@ -132,28 +156,39 @@ ui <- shinyUI(
             ),
             # --- Interactive Scatter Plot --- #
             fluidRow(
-              h4("Scatter Plot X vs. Y"),
-              plotlyOutput(
-                outputId = "plot"
+              conditionalPanel(
+                condition = "input.scatter == true",
+                h4("Scatter Plot X vs. Y"),
+                plotlyOutput(
+                  outputId = "plot"
+                )
               )
             ),
             # --- Linear Regression Equations --- #
             fluidRow(
-              h4("Rangkuman Model Regresi"),
+              h4("Hasil Regresi dari R"),
               verbatimTextOutput("model")
             ),
-            # --- Model Summary (CORRELATION DULU SEMENTARA) --- #
             fluidRow(
-              column(6,
-                     h4("Korelasi antar Variabel"),
-                     htmlOutput("corr"),
-                     HTML('</br> </br>')),
-              column(6,
-                     conditionalPanel(
-                       condition = "input.ro_ano ==true",
-                       h4("Tabel ANOVA"),
-                       htmlOutput("anova_table"),
-                       HTML('</br> </br>')))
+              h4("Perhitungan Manual Model Regresi"),
+              uiOutput("by_hand")
+            ),
+            fluidRow(
+              # --- Korelasi --- #
+              conditionalPanel(
+                condition = "input.corr == true",
+                h4("Korelasi antar Peubah"),
+                htmlOutput("corr"),
+                HTML('</br> </br>')
+              )
+            ),
+            fluidRow(
+              # --- Tabel ANOVA --- #
+              conditionalPanel(
+                condition = "input.ro_ano == true",
+                h4("Tabel ANOVA"),
+                htmlOutput("anova_table"),
+                HTML('</br> </br>'))
             )
           )
         )
@@ -247,31 +282,29 @@ server <-
     #~~~~~~~~~~~Conditional Datasets & Personalized Outputs~~~~~~~~~~~#
     ###################################################################
     # Reactive value for selected dataset
-    selected_df <- reactive({
+    chosendata <- reactive({
       switch(input$select_example,
              "Otomotif Mobil" = mtcars,
              "Karakteristik Batu" = rock,
              "Temperatur & Tekanan" = pressure)
     })
     
-    uploaded_df <- reactive({
+    filedata <- reactive({
       inFile <- input$chosen_file
       ext <- tools::file_ext(inFile$datapath)
       req(inFile)
-      validate(need(ext =="csv", "Silahkan unggah berkas csv"))
-      readData <- read.csv(inFile$datapath, header = TRUE)
+      validate(need(ext == "csv", "Silakan upload csv file"))
+      readData <- read.csv(inFile$datapath, header = TRUE, sep = c(';', '\t', ','))
       readData
     })
     
     myData <- reactive({
       req(input$data)
-      # ---------- Example Dataset ---------- #
       if(input$data == "Dataset Contoh"){
-        return(as.data.frame(selected_df()))
+        return(as.data.frame(chosendata()))
       }
-      # ---------- Upload the Dataset ---------- #
       else if(input$data == "Unggah Dataset"){
-        return(as.data.frame(uploaded_df()))  
+        return(as.data.frame(filedata()))
       }
     })
     
@@ -303,6 +336,18 @@ server <-
     output$model <- renderPrint({
       lm_model <- lm(as.formula(paste0(input$dv, "~", input$iv)), data = myData())
       lm_model
+    })
+    
+    output$by_hand <- renderUI({
+      fit <- lm(as.formula(paste0(input$dv, "~", input$iv)), data = myData())
+      withMathJax(
+        paste0("\\(\\hat{\\beta}_1 = \\dfrac{\\big(\\sum^n_{i = 1} x_i y_i \\big) - n \\bar{x} \\bar{y}}{\\sum^n_{i = 1} (x_i - \\bar{x})^2} = \\) ", round(fit$coef[[2]], 3)),
+        br(),
+        paste0("\\(\\hat{\\beta}_0 = \\bar{y} - \\hat{\\beta}_1 \\bar{x} = \\) ", round(fit$coef[[1]], 3)),
+        br(),
+        br(),
+        paste0("\\( \\Rightarrow y = \\hat{\\beta}_0 + \\hat{\\beta}_1 x = \\) ", round(fit$coef[[1]], 3), " + ", round(fit$coef[[2]], 3), "\\( x \\)")
+      )
     })
     
     
@@ -376,99 +421,7 @@ server <-
                      })
                    })
     
-    #~~~~~~~~~~~~~~~~~~~~Residual Plot~~~~~~~~~~~~~~~~~#
-    
-    
-    ## INI PLOT RESIDUAL OPSI 1. SEPAHAMKU HARUSNYA BISA SIH, DAN UDAH DI CEK DI SECARA TERPISAH
-    # TAPI SETELAH DI CEK MASALAHNYA, DATA FRAME residuals_df KAYAKNYA TIDAK TERBACAA..#
-    
-    # ResidualPlot <- function(data,x,y){
-    #   # -- model regresi
-    #   lm_model <- lm(formula = as.formula(paste0(y, "~", x)),
-    #                  data = data)
-    
-    #   # Create a data frame with predicted values and residuals
-    #   residuals_df <- data.frame(
-    #     Predictor = x,
-    #     Predicted = predict(lm_model),
-    #     Residuals = residuals(lm_model)
-    #   )
-    #   q <- ggplot(residuals_df, aes_string(x = Predictor, y = Residuals))
-    #   + geom_point() + theme_minimal()
-    
-    
-    # # -- Raw & vs. Predictor
-    # if ("input$res_type == 'Asli'" && "input$res_plot == 'vs. Peubah Penjelas'"){
-    #   q <- ggplot(residuals_df, aes_string(x = Predictor, y = Residuals))
-    #   + geom_point() + theme_minimal()
-    # }
-    
-    # # -- Standardized & vs. Predictor
-    # if ("input$res_type == 'Hasil Standarisasi'" && "input$res_plot == 'vs. Peubah Penjelas'") {
-    #   q <- ggplot(residuals_df, aes_string(x = scale(Predictor), y = scale(Residuals)))
-    #   + geom_point() + theme_minimal()
-    # }
-    
-    # # -- Raw & vs. Predicted
-    # if ("input$res_type == 'Asli'" && "input$res_plot == 'vs. Hasil Dugaan'") {
-    #   q <- ggplot(residuals_df, aes_string(x = Predicted, y = Residuals))
-    #   + geom_point() + theme_minimal()
-    # }
-    # # -- Standardized & vs. Predicted
-    # if ("input$res_type == 'Hasil Standarisasi'" && "input$res_plot == 'vs. Peubah Penjelas'") {
-    #   q <- ggplot(residuals_df, aes_string(x = scale(Predicted), y = scale(Residuals)))
-    #   + geom_point() + theme_minimal()
-    # }
-    # # -- konversi ke plotly
-    #   plot_residu <- ggplotly(q)
-    #   return(plot_residu)
-    # }
-    
-    # observeEvent(c(input$dv, input$iv), {
-    #                  output$res_plot <- renderPlotly({
-    #                    ResidualPlot(data = myData(),
-    #                                   x = input$iv,
-    #                                   y = input$dv)
-    #                  })
-    #                })
-    
-    
-    
-    # ## KALAU DI BAWAH INI LEBIH LENGKAP. KALAU MASALAH KETERKAITAN DATA SUDAH BERES,
-    # HARUSNYA INI BISA DIPAKAI. KALAU JALANIN YANG INI NANTI RESIDUAL PLOT, HISTOGRAM
-    # DAN BOXPLOT BISA JALAN SEMUA#
-    
-    # Observer to update the residual plot whenever variables change
-    # observeEvent(c(input$dv, input$iv), {
-    #   output$residual_plot <- renderPlot({
-    #     # Fit linear regression model
-    #     lm_model <- lm(paste(input$dv, "~", input$iv), data = myData())
-    
-    #     # Create a data frame with predicted values and residuals
-    #     residuals_df <- data.frame(
-    #       Predicted = predict(lm_model),
-    #       Residuals = residuals(lm_model)
-    #     )
-    #     # Plot residuals
-    #     ggplot(residuals_df, aes(x = Predicted, y = Residuals)) +
-    #       geom_point() +
-    #       geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
-    #       labs(title = "Residual Plot")
-    #   })
-    #   output$res_hist <- renderPlot({
-    #     residuals <- residuals(lm_model())
-    #     ggplot() +
-    #       geom_histogram(aes(x = residuals), bins = 20, fill = "skyblue", color = "black") +
-    #       labs(title = "Histogram of Residuals")
-    #   })
-    #   output$boxplot <- renderPlot({
-    #     residuals <- residuals(lm_model())
-    #     ggplot() +
-    #       geom_boxplot(aes(y = residuals), fill = "lightgreen", color = "black") +
-    #       labs(title = "Boxplot of Residuals")
-    #   })
-    # })
-    
+ 
     #~~~~~~~~~~~~~~~Anaysis of Variance (ANOVA) Table~~~~~~~~~~~~~~#
     
     output$anova_table <- renderTable({
@@ -571,7 +524,8 @@ createResidualPlot <- function(data, x_var, y_var) {
 
 createHistogram <- function(data, var) {
   
-  h <- ggplot(data, aes_string(x = var)) + geom_histogram(binwidth = 1, colour = 1, fill = "#f48194") + theme_minimal()
+  h <- ggplot(data, aes_string(x = var)) + geom_histogram(binwidth = 1, colour = 1, 
+                                                          fill = "#f48194") + theme_minimal()
   
   return(h)
 }
